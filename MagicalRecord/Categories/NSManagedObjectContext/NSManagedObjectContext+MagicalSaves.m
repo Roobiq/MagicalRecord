@@ -71,8 +71,56 @@
         @finally
         {
             if (!saved) {
+                // If Cocoa generated the error...
+                NSString *message = nil;
+                if ([[error domain] isEqualToString:@"NSCocoaErrorDomain"]) {
+                    // ...check whether there's an NSDetailedErrors array
+                    NSDictionary *userInfo = [error userInfo];
+                    if ([userInfo valueForKey:@"NSDetailedErrors"] != nil) {
+                        // ...and loop through the array, if so.
+                        NSArray *errors = [userInfo valueForKey:@"NSDetailedErrors"];
+                        for (NSError *anError in errors) {
+                            
+                            NSDictionary *subUserInfo = [anError userInfo];
+                            subUserInfo = [anError userInfo];
+                            // Granted, this indents the NSValidation keys rather a lot
+                            // ...but it's a small loss to keep the code more readable.
+                            MRLog(@"Core Data Save Error\n\n \
+                                  NSValidationErrorKey\n%@\n\n \
+                                  NSValidationErrorPredicate\n%@\n\n \
+                                  NSValidationErrorObject\n%@\n\n \
+                                  NSLocalizedDescription\n%@",
+                                  [subUserInfo valueForKey:@"NSValidationErrorKey"],
+                                  [subUserInfo valueForKey:@"NSValidationErrorPredicate"],
+                                  [subUserInfo valueForKey:@"NSValidationErrorObject"],
+                                  [subUserInfo valueForKey:@"NSLocalizedDescription"]);
+                        }
+                    }
+                    // If there was no NSDetailedErrors array, print values directly
+                    // from the top-level userInfo object. (Hint: all of these keys
+                    // will have null values when you've got multiple errors sitting
+                    // behind the NSDetailedErrors key.
+                    else {
+                        MRLog(@"Core Data Save Error\n\n \
+                              NSValidationErrorKey\n%@\n\n \
+                              NSValidationErrorPredicate\n%@\n\n \
+                              NSValidationErrorObject\n%@\n\n \
+                              NSLocalizedDescription\n%@",
+                              [userInfo valueForKey:@"NSValidationErrorKey"],
+                              [userInfo valueForKey:@"NSValidationErrorPredicate"],
+                              [userInfo valueForKey:@"NSValidationErrorObject"],
+                              [userInfo valueForKey:@"NSLocalizedDescription"]);
+                        
+                    }
+                }
+                // Handle mine--or 3rd party-generated--errors
+                else {
+                    MRLog(@"Custom Error: %@", [error localizedDescription]);
+                }
+                
+                // Now let's continue with MR
                 [MagicalRecord handleErrors:error];
-
+                
                 if (completion) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         completion(saved, error);
